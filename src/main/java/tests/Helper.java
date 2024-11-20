@@ -1,12 +1,13 @@
 package tests;
 import com.github.javafaker.Faker;
-import dto.LoginRequest;
-import dto.PostCreationRequest;
-import dto.RegisterRequest;
-import dto.RegisterResponse;
+import dto.*;
 import io.restassured.response.Response;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
 public class Helper {
     static Faker faker = new Faker();
     public static String userRegistration() {
@@ -76,5 +77,47 @@ public class Helper {
         ids.put("postId", postId);
         ids.put("userId", userId);
         return ids;
+    }
+
+    public static void verifyTokens(Response response) {
+        String token = response.path("accessToken");
+        assertFalse(token.isEmpty(), "The access token cannot be empty");
+        String refreshToken = response.path("refreshToken");
+        assertFalse(refreshToken.isEmpty(), "The refresh token cannot be empty");
+        int expiration = response.path("expiration");
+        assertTrue(expiration > 0, "The expiration should be greater than 0");
+    }
+
+    public static void verifyErrorMessages(Response response, String field, List<String> expectedMessages) {
+        List<String> actualMessages = response.path(field);
+        for (String message : expectedMessages) {
+            assertTrue(actualMessages.contains(message), "Missing expected error message: " + message);
+        }
+    }
+
+    public static Response registerUser(String email, String password, String role, int expectedStatusCode) {
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setEmail(email);
+        registerRequest.setPassword(password);
+        registerRequest.setConfirmPassword(password);
+        registerRequest.setRole(role);
+        return BaseTest.postRequestWithoutToken("/api/auth/register", expectedStatusCode, registerRequest);
+    }
+
+    public static void verifyErrorMessage(Response response, String field, String expectedMessage) {
+        assertEquals(expectedMessage, response.path(field + "[0]"),
+                "Expected error message for field '" + field + "' is missing or incorrect.");
+    }
+
+    public static String getUserId(String token) {
+        Response userInfoResponse = BaseTest.getRequest(token, "/api/me", 200);
+        return userInfoResponse.jsonPath().getString("id");
+    }
+
+    public static Response updateUserProfile(String token, String id, String name, int expectedStatusCode) {
+        UpdateProfileRequest updateProfileRequest = new UpdateProfileRequest();
+        updateProfileRequest.setName(name);
+        String endPoint = "/api/users/" + id;
+        return BaseTest.putRequest(token, endPoint, expectedStatusCode, updateProfileRequest);
     }
 }
